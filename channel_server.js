@@ -5,17 +5,27 @@ var path = require("path");
 var sessions = {};
 var usersInSessionLimit = 2;
 
+var port = process.env.PORT || 8080;
+if (process.argv.length == 3) {
+    port = process.argv[2];
+}
+
 var serverDir = path.dirname(__filename)
 var clientDir = path.join(serverDir, "client/");
 
 var contentTypeMap = {
-    ".html": "text/html",
+    ".html": "text/html;charset=utf-8",
     ".js": "text/javascript",
     ".css": "text/css"
 };
 
-var server = http.Server(function (request, response) {
-    var headers = {"Access-Control-Allow-Origin": "*"};
+var server = http.createServer(function (request, response) {
+    var headers = {
+        "Cache-Control": "no-cache, no-store",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    };
+
     var parts = request.url.split("/");
 
     // handle "client to server" and "server to client"
@@ -98,11 +108,13 @@ var server = http.Server(function (request, response) {
             request.on("data", function (data) { body += data; });
             request.on("end", function () {
                 console.log("@" + sessionId + " - " + userId + " => " + peerId + " :");
-                //console.log(body);
+                // console.log(body);
                 var evtdata = "data:" + body.replace(/\n/g, "\ndata:") + "\n";
                 peer.esResponse.write("event:user-" + userId + "\n" + evtdata + "\n");
             });
 
+            // to avoid "no element found" warning in Firefox (bug 521301)
+            headers["Content-Type"] = "text/plain";
             response.writeHead(204, headers);
             response.end();
         }
@@ -110,19 +122,20 @@ var server = http.Server(function (request, response) {
         return;
     }
 
-    var filePath = path.join(clientDir, request.url);
+    var url = request.url.split("?", 1)[0];
+    var filePath = path.join(clientDir, url);
     if (filePath.indexOf(clientDir) != 0 || filePath == clientDir)
         filePath = path.join(clientDir, "/webrtc_example.html");
 
-    fs.exists(filePath, function (exists) {
-        if (!exists) {
+    fs.stat(filePath, function (err, stats) {
+        if (err || !stats.isFile()) {
             response.writeHead(404);
             response.end("404 Not found");
             return;
         }
 
         var contentType = contentTypeMap[path.extname(filePath)] || "text/plain";
-        response.writeHead(200, {"Content-Type": contentType});
+        response.writeHead(200, { "Content-Type": contentType });
 
         var readStream = fs.createReadStream(filePath);
         readStream.on("error", function () {
@@ -132,4 +145,6 @@ var server = http.Server(function (request, response) {
         readStream.pipe(response);
     });
 });
-server.listen(8080);
+
+console.log('The server is listening on port ' + port);
+server.listen(port);
