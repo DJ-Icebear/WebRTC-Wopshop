@@ -1,251 +1,27 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-    <head>
-        <title>Simple Client</title>
-        
-        <style type="text/css">
-        
-            video {
-                width: 320px;
-                height: 240px;
-            }
-        
-        </style>
-        
-        <script src="./signaling_channel.js" type="text/javascript"></script>
-        
-        <script src="./Seriously.js/seriously.js"></script>
-        <script src="./Seriously.js/effects/seriously.chroma.js"></script>
-        <script src="./Seriously.js/effects/seriously.blend.js"></script>
-        
-        <script>
-            
-            var selfView,
-                remoteView,
-                joinButton,
-                callButton,
-                sendButton,
-                sendText,
-                chatText,
-                logger,
-                signalingChannel,
-                pc,
-                peer,
-                localStream;
-            
-            // We need a configuration for RTCPeerConnection
-            var configuration = { "iceServers": [{ "url": "stun:stun.l.google.com:19302" }] };
-            var isCaller = false;
-            
-            window.onload = function () {
-                
-                selfView = document.getElementById("self_view");
-                remoteView = document.getElementById("remote_view");
-                joinButton = document.getElementById("join_btn");
-                callButton = document.getElementById("call_btn");
-                sendButton = document.getElementById("send_btn");
-                sendText = document.getElementById("send_text");
-                chatText = document.getElementById("chat_text");
-                logger = document.getElementById("log_div");
-                
-                joinButton.onclick = function (evt) {
-                    
-                    joinButton.disabled = true;
-                    
-                    var sessionId = document.getElementById("session_txt").value;
-                    signalingChannel = new SignalingChannel(sessionId);
-                    
-                    // Another peer has join our session
-                    signalingChannel.onpeer = function (evt) {
-                        callButton.disabled = false;
-                        
-                        peer = evt.peer;
-                        peer.onmessage = handleMessage;
-                        
-                        peer.ondisconnect = function () {
-                            callButton.disabled = true;
-                            if (pc)
-                                pc.close();
-                            pc = null;
-                        };
-                    };
-                };
-                
-                callButton.onclick = function() {
-                    isCaller = true;
-                    start();
-                }
-                
-                // Get a local stream, show it in a self-view and add it to be sent
-                navigator.webkitGetUserMedia({ "video": true },
-                                             function (stream) {
-                                                selfView.src = URL.createObjectURL(stream);
-                                                localStream = stream;
-                                                joinButton.disabled = false;
-                                             },
-                                             function(error) {
-                                                alert(error);
-                                             });
-                
-                (function() {
-                 //main code goes here
-                 
-                 // declare our variables
-                 var seriously, // the main object that holds the entire composition
-                    gUM, // will reference getUserMedia or whatever browser-prefixed version we can find
-                    URL, // will reference window.URL or whatever browser-prefixed version we can find
-                    image, // atomics jpg image
-                    source, // wrapper object for source video
-                    chroma, // chroma detection effect
-                    blend,
-                    target; // a wrapper object for our target canvas
-                 
-                 // construct our seriously object
-                 seriously = new Seriously();
-                 
-                 
-                 source1 = seriously.source(selfView);
-                 source2 = seriously.source(remoteView);
-                 
-                 target = seriously.target('#target');
-                 chroma = seriously.effect('chroma');
-                 blend = seriously.effect('blend');
+<head>
+	<title>Seriously.js Camera Demo</title>
+</head>
+<body>
 
-                 chroma.color = [0.76, 0.25, 0.12, 1];
-                 chroma.weight = 1;
-                 chroma.balance = 0.9;
-                 chroma.clipBlack = 0.25;
-                 chroma.clipWhite = 1;
+	<canvas id="targetCanvas" width="640" height="480"></canvas>
 
-                 // connect all our nodes in the right order
-                 chroma.source = source1;
-                 blend.top = chroma;
-                 blend.bottom = source2;
-                 target.source = blend;
+	<script src="./Seriously.js/seriously.full.min.js"></script>
+	<script>
+		
+		var seriously = new Seriously(), // the main object that holds the entire composition
+			source = seriously.source('camera'), // wrapper object for source video
+			effect = seriously.effect('ascii'), // ascii effect
+			target = seriously.target('#targetCanvas'); // a wrapper object for our target canvas
 
-                 seriously.go();
-                 
-                 }());
-            }
-        
-        
-        // Handle signaling messages received from the other peer
-        function handleMessage(evt) {
-            
-            if (!pc) {
-                start();
-            }
-            
-            var message = JSON.parse(evt.data);
-            
-            // You need to handle both incoming session descriptions (offers and answers) and candidates
-            if (message.sdp) {
-                var desc = new RTCSessionDescription(message.sdp);
-                pc.setRemoteDescription(desc, function () {
-                                        // if we received an offer, we need to create an answer with
-                                        if (pc.remoteDescription.type === "offer") {
-                                            pc.createAnswer(localDescCreated, logError);
-                                        }
-                                        }, logError);
-                                        
-            } else if (message.candidate) {
-                pc.addIceCandidate(new RTCIceCandidate(message.candidate));
-            }
-        }
-              
-        // Call start() to initiate
-        function start() {
-            
-            // Create a RTCPeerConnection with data channel
-            pc = new webkitRTCPeerConnection(configuration, { "optional": [{ "RtpDataChannels": true }] });
-            
-            // Send any ice candidates to the other peer
-            pc.onicecandidate = function (evt) {
-                if (peer && evt.candidate) {
-                    peer.send(JSON.stringify({ "candidate": evt.candidate }));
-                }
-            };
-            
-            // Let the "negotiationneeded" event trigger offer generation
-            pc.onnegotiationneeded = function () {
-                if (isCaller) {
-                    pc.createOffer(localDescCreated, logError);
-                }
-            };
-            
-            // Once remote stream arrives, show it in the remote video element
-            pc.onaddstream = function (evt) {
-                remoteView.src = URL.createObjectURL(evt.stream);
-            };
-            
-            // Create the data channel
-            if (isCaller) {
-                dataChannel = pc.createDataChannel("chat");
-                dataChannel.onopen = function () {
-                    // dataChannel is ready to be used
-                    enableChat();
-                };
-            } else {
-                pc.ondatachannel = function (evt) {
-                    dataChannel = evt.channel;
-                    enableChat();
-                }
-            }
-            
-            pc.addStream(localStream);
-        }
-
-                function localDescCreated(desc) {
-            console.log("GASD");
-            pc.setLocalDescription(desc, function() {
-                                   // send pc.localDescription on signaling channel
-                                   peer.send(JSON.stringify({"sdp" : desc}));
-                                   }, logError);
-        }
-        
-        function enableChat() {
-            sendButton.disabled = false;
-            sendButton.onclick = function () {
-                var message = sendText.value;
-                
-                if (message && message.length > 0) {
-                    console.log("sending " + message);
-                    chatText.value = chatText.value + "\n" + "You said: " + message;
-                    sendText.value = "";
-                    dataChannel.send(message);
-                }
-            };
-            dataChannel.onmessage = function(evt) {
-                // console.log("received " + evt.data);
-                chatText.value = chatText.value + "\n" + "Peer said: " + evt.data;
-            };
-        }
-        
-        function logError(msg) {
-            logger.innerHTML += msg + "<br>";
-        }
-        
-        </script>
-        
-    </head>
-    <body>
-        <h2>Simple WebRTC Example</h2>
-        Session id: <input type="text" id="session_txt" value="test"/>
-        <input type="button" id="join_btn" value="Join" disabled/>
-        <input type="button" id="call_btn" value="Call" disabled/>
-        
-        <br>
-        <video id="self_view" autoplay></video>
-        <video id="remote_view" autoplay></video>
-        <br>
-        <textarea style="width:640px; height:200px;" id="chat_text"></textarea>
-        <br>
-        <input style="width:590px;" type="text" id="send_text">
-        <input type="button" id="send_btn" value="Send" disabled/>
-        
-        <div id="log_div"></div>
-        
-        <canvas id="target" width="640" height="480"></canvas>
-        
-    </body>
+		// Connect all nodes in the right order
+		effect.source = source;
+		target.source = effect;
+		 
+		// Start!
+		seriously.go();
+		
+	</script>
+</body>
 </html>
