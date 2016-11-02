@@ -1,6 +1,11 @@
 var fs = require("fs");
-var http = require("http");
+var https = require("https");
 var path = require("path");
+
+var httpsOpts = {
+    key: fs.readFileSync('localhost.key'),
+    cert: fs.readFileSync('localhost.crt')
+};
 
 var sessions = {};
 var usersInSessionLimit = 2;
@@ -19,7 +24,7 @@ var contentTypeMap = {
     ".css": "text/css"
 };
 
-var server = http.createServer(function (request, response) {
+var server = https.createServer(httpsOpts, function (request, response) {
     var headers = {
         "Cache-Control": "no-cache, no-store",
         "Pragma": "no-cache",
