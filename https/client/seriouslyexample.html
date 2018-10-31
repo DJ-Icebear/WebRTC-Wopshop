@@ -5,30 +5,104 @@
 </head>
 <body>
 
-	<canvas id="targetCanvas" width="640" height="480" style="border: 1px solid black"></canvas>
+<img id="beach" src="beach.jpeg" style="display:none;">
+<canvas id="targetCanvas" width="640" height="480" style="border: 1px solid black"></canvas>
 
-	<div>
-		<button onclick="startSeriously()">Start!</button>
-	</div>
+<div>
+	<button onclick="render()">Start!</button>
+</div>
+
+<label>Balance</label>
+<input type="range" onchange="set('balance', this.value);" value="0.9" step="0.05" min="0" max="1">
+
+<label>ClipWhite</label>
+<input type="range" onchange="set('clipWhite', this.value);" value="0.9" step="0.05" min="0" max="1">
+
+<label>ClipBlack</label>
+<input type="range" onchange="set('clipBlack', this.value);" value="0.1" step="0.05" min="0" max="1">
+
+<label>Weight</label>
+<input type="range" onchange="set('weight', this.value);" value="1" step="0.05" min="0" max="1">
+
+<label>Color</label>
+<input type="color" onchange="updateColor(this.value)" name="color">
 
 
-	<script src="./Seriously.js/seriously.full.min.js"></script>
-	<script>
+<script src="./Seriously.js/seriously.full.min.js"></script>
+<script>
+  var beach = document.getElementById("beach");
 
-		var seriously = new Seriously(), // the main object that holds the entire composition
-			source = seriously.source('camera'), // wrapper object for source video
-			effect = seriously.effect('ascii'), // ascii effect
-			target = seriously.target('#targetCanvas'); // a wrapper object for our target canvas
+  // declare our variables
+  var seriously, // the main object that holds the entire composition
+    gUM, // will reference getUserMedia or whatever browser-prefixed version we can find
+    URL, // will reference window.URL or whatever browser-prefixed version we can find
+    image, // atomics jpg image
+    source, // wrapper object for source video
+    chroma, // chroma detection effect
+    blend,
+    target; // a wrapper object for our target canvas
 
-		// Connect all nodes in the right order
-		effect.source = source;
-		target.source = effect;
+  // construct our seriously object
+  seriously = new Seriously();
 
-		var startSeriously = function() {
-          // Start!
-          seriously.go();
-		}
+  chroma = seriously.effect('chroma');
+  // chroma.color = [100/255, 190/255, 117/255, 1];
+  // chroma.color = [0.76, 0.25, 0.12, 1];
+  chroma.color = [1, 1, 1, 1];
+  chroma.weight = 1;
+  chroma.balance = 0.9;
+  chroma.clipBlack = 0.1;
+  chroma.clipWhite = 0.9;
 
-	</script>
+  var render = function() {
+    // Start!
+
+    source1 = seriously.source(beach);
+    source2 = seriously.source("camera");
+
+    target = seriously.target('#targetCanvas');
+
+    blend = seriously.effect('blend');
+
+    // connect all our nodes in the right order
+    chroma.source = source2;
+    blend.top = chroma;
+    blend.bottom = source1;
+    target.source = blend;
+
+    seriously.go();
+  }
+
+  var filters = ["balance", "clipWhite", "clipBlack", "weight"];
+  // Sets a filter to a value
+  function set(filter, value) {
+    console.log('setting: ' + filter + " to: " + value);
+    chroma[filter] = value;
+    seriously.go();
+  }
+
+  var updateColor = function(value) {
+    console.log('updating color: ', value)
+    var rgbVal = hexToRgb(value);
+    chroma.color = [
+      rgbVal.r,
+      rgbVal.g,
+      rgbVal.b,
+	  1];
+
+	console.log('chroma color', chroma.color)
+    seriously.go();
+  }
+
+  var hexToRgb = function (hex) {
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
+
+</script>
 </body>
 </html>
