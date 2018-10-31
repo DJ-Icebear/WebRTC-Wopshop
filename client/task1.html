@@ -15,15 +15,15 @@
   window.onload = function () {
     // TODO: Request access to the webcam AND microphone
 
-    function gotStream(stream) {
+    navigator.mediaDevices.getUserMedia(constraints)
+    .then(function(stream) {
+      /* use the stream */
       document.getElementById('localVideo').src = URL.createObjectURL(stream);
-    }
-
-    function gotError(error) {
+    })
+    .catch(function(err) {
+      /* handle the error */
       console.log(error);
-    }
-
-    navigator.webkitGetUserMedia(constraints, gotStream, gotError);
+    });
   };
 
 </script>
